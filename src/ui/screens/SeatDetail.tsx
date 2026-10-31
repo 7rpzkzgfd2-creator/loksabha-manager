@@ -1,17 +1,23 @@
 import { useState } from 'react';
-import { STATE_BY_CODE, ISSUES, ISSUE_NAME, SEGMENTS, ACTIONS, estimate, newActionId, candidateAppeal, poachQuote } from '../../engine/index.ts';
+import { STATE_BY_CODE, ISSUES, ISSUE_NAME, SEGMENTS, ACTIONS, estimate, newActionId, candidateAppeal, poachQuote, candidateFit, seatCategory, seatFactors, CATEGORY_LABEL, CANDIDACIES } from '../../engine/index.ts';
 import type { ActionType, Candidate, Issue } from '../../engine/index.ts';
 import { makeRng } from '../../engine/rng.ts';
 import { useGame, useStore } from '../store.tsx';
-import { Attr, Confirm, Modal, PartyChip, Prov, StackBar, fmtCr } from '../components.tsx';
+import { Attr, Confirm, FitNum, IssueChips, Modal, PartyChip, Prov, StackBar, fmtCr } from '../components.tsx';
+import type { CandidateFit } from '../../engine/index.ts';
 import { ratingFor, RATING_COLOR } from '../derive.ts';
 
-export function CandidateCard({ k, own, compact }: { k: Candidate; own: boolean; compact?: boolean }) {
+export function CandidateCard({ k, own, compact, fit }: { k: Candidate; own: boolean; compact?: boolean; fit?: CandidateFit }) {
   const hideEthics = !own || !k.vetted;
+  const record = k.real ? CANDIDACIES.find((d) => d.id === k.real && d.name === k.name) : undefined;
   return (
     <div className="panel" style={{ padding: 12, background: '#0b1017' }}>
       <div className="row"><b>{k.name}</b>{k.incumbent && <span className="chip info">Sitting MP</span>}<span className="chip right">{k.profile.replace('_', ' ')}</span></div>
-      <div className="tiny dim" style={{ margin: '3px 0 8px' }}>Age {k.age}{own && !k.vetted ? ' · not vetted' : ''}</div>
+      {k.real
+        ? <div className="tiny" style={{ margin: '3px 0 8px' }}><span className="chip info">Real politician</span> <span className="dim">Contested this seat for {record?.party ?? k.party} in {record?.scenario.slice(2) ?? 'this election'} (public record). Ratings and issues are game estimates.</span></div>
+        : <div className="tiny dim" style={{ margin: '3px 0 8px' }}>Age {k.age}{own && !k.vetted ? ' · not vetted' : ''} · fictional</div>}
+      <div style={{ marginBottom: 8 }}><IssueChips strong={k.strong} weak={k.weak} /></div>
+      {fit && <div className="row small" style={{ marginBottom: 8, gap: 14 }}><span className="dim">State fit</span><FitNum v={fit.stateFit} /><span className="dim">Seat fit</span><FitNum v={fit.seatFit} /><span className="dim">Suitability</span><b className="mono">{Math.round(fit.suitability * 20)}/20</b></div>}
       <div className="grid g2" style={{ gap: '4px 16px' }}>
         <Attr label="Local standing" v={k.localRep} />
         <Attr label="Communication" v={k.communication} />
@@ -41,6 +47,8 @@ export default function SeatDetail({ id }: { id: string }) {
   const parties = Object.keys(c.candidates).sort((a, b) => (fc?.shares[b] ?? 0) - (fc?.shares[a] ?? 0));
   const canAct = g.phase === 'campaign';
   const quote = poach ? poachQuote(g, me, c.id, poach) : null;
+  const rival = parties.find((p) => p !== me && p !== 'OTH') ?? parties.find((p) => p !== me);
+  const factors = c.candidates[me] && rival ? seatFactors(g, c, me, rival) : [];
 
   return (
     <Modal wide onClose={() => openSeat(null)} title={<div className="row"><div><div className="upper">{st.name} · {c.id}</div><b className="display" style={{ fontSize: 22 }}>{c.name}</b></div><span className="chip" style={{ color: RATING_COLOR[rating], marginLeft: 12 }}>{rating} for you</span></div>}>
@@ -64,8 +72,20 @@ export default function SeatDetail({ id }: { id: string }) {
           </div>
 
           <div className="grid g2">
-            {c.candidates[me] && <div><div className="upper" style={{ marginBottom: 6 }}>Your candidate</div><CandidateCard k={c.candidates[me]} own /></div>}
-            {parties.filter((p) => p !== me && p !== 'OTH').slice(0, 1).map((p) => <div key={p}><div className="upper" style={{ marginBottom: 6 }}>Main rival ({g.parties[p].short})</div><CandidateCard k={c.candidates[p]} own={false} compact /></div>)}
+            {c.candidates[me] && <div><div className="upper" style={{ marginBottom: 6 }}>Your candidate</div><CandidateCard k={c.candidates[me]} own fit={candidateFit(g, c, c.candidates[me])} /></div>}
+            {parties.filter((p) => p !== me && p !== 'OTH').slice(0, 1).map((p) => <div key={p}><div className="upper" style={{ marginBottom: 6 }}>Main rival ({g.parties[p].short})</div><CandidateCard k={c.candidates[p]} own={false} compact fit={candidateFit(g, c, c.candidates[p])} /></div>)}
+          </div>
+
+          {c.candidates[me] && rival && (
+            <div className="panel" style={{ background: '#0b1017' }}>
+              <div className="row" style={{ marginBottom: 8 }}><b className="small">Why the seat leans the way it does</b><span className="chip right">{CATEGORY_LABEL[seatCategory(fc, me)]}</span></div>
+              <div className="col small" style={{ gap: 4 }}>
+                {factors.slice(0, 6).map((f) => <div key={f.label} className="row"><span className="grow muted">{f.label}</span><span className="mono" style={{ color: f.value > 0 ? '#3ccf8e' : '#ff6b6b' }}>{f.value > 0 ? `helps ${g.parties[me].short}` : `helps ${g.parties[rival].short}`}</span><span className="mono dim" style={{ width: 48, textAlign: 'right' }}>{(f.value * 100).toFixed(0)}</span></div>)}
+              </div>
+              <div className="tiny dim" style={{ marginTop: 6 }}>Factors from the vote model, compared with {g.parties[rival].short}. Larger numbers mattered more. Estimates, not certainties.</div>
+            </div>
+          )}
+          <div style={{ display: 'none' }}>
           </div>
 
           {canAct && (
@@ -87,8 +107,8 @@ export default function SeatDetail({ id }: { id: string }) {
           {canAct && g.stage !== 'final_push' && (
             <div className="panel" style={{ background: '#100c10', borderColor: '#3a2030' }}>
               <div className="row"><b>Backroom: approach a rival candidate</b><span className="chip bad right">Illegal · risky</span></div>
-              <p className="small muted">Offer money to switch sides. If they agree, they bring part of their personal vote. Fees for failed approaches are lost, and a refusal can be leaked.</p>
-              <div className="row wrap">{parties.filter((p) => p !== me && p !== 'OTH').map((p) => <button key={p} className={`btn sm ${poach === p ? 'primary' : ''}`} onClick={() => setPoach(p)}>{c.candidates[p].name} ({g.parties[p].short})</button>)}</div>
+              <p className="small muted">Real politicians in the game cannot be approached. Offer money to a generated rival candidate to switch sides. If they agree, they bring part of their personal vote. Fees for failed approaches are lost, and a refusal can be leaked.</p>
+              <div className="row wrap">{parties.filter((p) => p !== me && p !== 'OTH' && !c.candidates[p].real).map((p) => <button key={p} className={`btn sm ${poach === p ? 'primary' : ''}`} onClick={() => setPoach(p)}>{c.candidates[p].name} ({g.parties[p].short})</button>)}</div>
               {quote && <div className="small" style={{ marginTop: 8 }}>Asking price about <b className="mono">{fmtCr(quote.price)}</b>. Our fixers put the odds at roughly <b>{Math.round(quote.odds * 100)}%</b> at that price. Could bring around <b>{(quote.personalVote * 100).toFixed(1)}</b> points of vote share.</div>}
             </div>
           )}

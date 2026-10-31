@@ -23,7 +23,7 @@ export default function Home() {
 
   return (
     <>
-      <PageHead title={<>Good morning, {p.leader.split(' ')[0]}</>} sub={g.phase === 'campaign' ? `${sc.title}. ${left > 0 ? `${left} week${left > 1 ? 's' : ''} to polling day.` : 'Polling day is next.'} ${g.stage === 'preparation' ? 'Tickets, manifesto and alliances lock at the end of week 2.' : ''}` : `Phase: ${g.phase}.`} />
+      <PageHead title={<>{p.short} campaign office</>} sub={g.phase === 'campaign' ? `${sc.title}. ${left > 0 ? `${left} week${left > 1 ? 's' : ''} to polling day.` : 'Polling day is next.'} ${g.stage === 'preparation' ? 'Tickets, manifesto and alliances lock at the end of week 2.' : ''}` : `Phase: ${g.phase}.`} />
       <div className="grid g-main">
         <div className="col" style={{ gap: 14 }}>
           {g.turnSummary.length > 0 && (

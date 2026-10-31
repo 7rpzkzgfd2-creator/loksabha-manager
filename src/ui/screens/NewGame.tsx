@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { PARTY_DEFS, SCENARIOS, SCENARIO_BY_ID, STATES_LIST, ISSUES, SEGMENTS, CUSTOM_BUDGET, customLaunchCost } from '../../engine/index.ts';
 import type { CustomPartyInput, Difficulty, Issue, ScenarioConfig, SandboxOptions } from '../../engine/index.ts';
 import { useStore } from '../store.tsx';
+import { LEADERS, symbolFor } from '../../engine/index.ts';
+import { SCENARIO_NAMES } from '../../engine/data/politicians.ts';
 import { Meter, Panel, Prov, Seg, Symbol, SYMBOL_KEYS, attr20 } from '../components.tsx';
 import type { Mode } from './Title.tsx';
 
@@ -65,13 +67,14 @@ export default function NewGame({ mode, onBack }: { mode: Mode; onBack: () => vo
 
         {cur === 'Party' && (
           <>
-            <p className="muted" style={{ marginTop: -8 }}>Attributes are game estimates on a 1–20 scale, not measurements. Leaders are fictional.</p>
+            <p className="muted" style={{ marginTop: -8 }}>Attributes are game estimates on a 1–20 scale, not measurements. Leaders and roles are from public records for this election; the election symbol is named under each party.</p>
             <div className="grid g4 fade-in">
               {available.map((p) => (
                 <button key={p.id} className={`party-card ${party === p.id ? 'on' : ''}`} style={{ ['--pc' as string]: p.color, ['--pc2' as string]: p.color2 }} onClick={() => setParty(p.id)}>
                   <div className="stripe" />
-                  <div className="row"><Symbol p={p} size={36} /><div className="grow"><b>{p.short}</b><div className="tiny dim ellipsis">{p.name}</div></div></div>
-                  <div className="small muted" style={{ margin: '10px 0 8px' }}>{p.national ? 'National' : `Regional · ${p.homeStates.join(', ')}`} · {p.leader}</div>
+                  <div className="row"><Symbol p={{ ...p, short: SCENARIO_NAMES[p.id]?.[scenarioId as 'ls2019']?.short ?? p.short }} size={36} /><div className="grow"><b>{SCENARIO_NAMES[p.id]?.[scenarioId as 'ls2019']?.short ?? p.short}</b><div className="tiny dim ellipsis">{SCENARIO_NAMES[p.id]?.[scenarioId as 'ls2019']?.name ?? p.name}</div></div></div>
+                  <div className="small muted" style={{ margin: '10px 0 8px' }}>{p.national ? 'National' : `Regional · ${p.homeStates.join(', ')}`} · {LEADERS.find((l) => l.party[scenarioId as 'ls2024'] === p.id)?.name ?? p.leader}</div>
+                  <div className="tiny dim" style={{ marginBottom: 8 }}>Symbol: {symbolFor(p.id, scenarioId)}</div>
                   <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '4px 12px', fontSize: 12 }}>
                     <span className="dim">Leader</span><span className="mono right">{attr20(p.leaderPop)}</span>
                     <span className="dim">Machine</span><span className="mono right">{attr20(p.organisation)}</span>

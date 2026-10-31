@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { GameState, Party, Provenance } from '../engine/index.ts';
+import { ISSUE_NAME } from '../engine/index.ts';
 
 export function partyColor(g: GameState, id: string) { return g.parties[id]?.color ?? '#555'; }
 
@@ -18,8 +19,32 @@ const GLYPHS: Record<string, string> = {
   wheel: '☸', flame: '✦', hand: '✊', book: '▤', tree: '♣', mountain: '▲', drop: '◆',
 };
 export const SYMBOL_KEYS = ['wheel', 'flame', 'hand', 'book', 'tree', 'mountain', 'drop', 'star'];
-export function Symbol({ p, size = 40 }: { p: Pick<Party, 'symbol' | 'color' | 'color2'>; size?: number }) {
-  return <span className="symbol" style={{ width: size, height: size, background: `linear-gradient(135deg, ${p.color}, ${shade(p.color, -30)})`, color: pickInk(p.color), fontSize: size * 0.5 }}>{GLYPHS[p.symbol] ?? '★'}</span>;
+// Real parties get a plain name badge: the game does not ship or imitate official party
+// logos or ECI symbol artwork. The ECI symbol name is given as text (tooltip and labels).
+// Player-founded parties keep the glyph they picked.
+export function Symbol({ p, size = 40 }: { p: Pick<Party, 'symbol' | 'color' | 'color2'> & { short?: string; displaySymbol?: string; custom?: boolean }; size?: number }) {
+  const bg = `linear-gradient(135deg, ${p.color}, ${shade(p.color, -30)})`;
+  const custom = p.custom || (SYMBOL_KEYS.includes(p.symbol) && p.short !== 'OTH');
+  if (!custom && p.short) {
+    const len = p.short.length;
+    return <span className="symbol" title={p.displaySymbol ? `Election symbol: ${p.displaySymbol}` : p.short} style={{ width: size, height: size, background: bg, color: pickInk(p.color), fontSize: size * (len <= 3 ? 0.32 : len <= 5 ? 0.24 : 0.19), fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1 }}>{p.short}</span>;
+  }
+  return <span className="symbol" style={{ width: size, height: size, background: bg, color: pickInk(p.color), fontSize: size * 0.5 }}>{GLYPHS[p.symbol] ?? '★'}</span>;
+}
+
+export function IssueChips({ strong, weak, max = 5 }: { strong?: { issue: string; level: number }[]; weak?: { issue: string; level: number }[]; max?: number }) {
+  const names = ISSUE_NAME as Record<string, string>;
+  return (
+    <span className="row wrap" style={{ gap: 4 }}>
+      {(strong ?? []).slice(0, max).map((t) => <span key={'s' + t.issue} className="chip good" title={`Strong on ${names[t.issue]} (intensity ${Math.round(t.level * 20)}/20)`}>+ {names[t.issue]}</span>)}
+      {(weak ?? []).slice(0, max).map((t) => <span key={'w' + t.issue} className="chip bad" title={`Weak on ${names[t.issue]} (intensity ${Math.round(t.level * 20)}/20)`}>− {names[t.issue]}</span>)}
+    </span>
+  );
+}
+
+export function FitNum({ v }: { v: number }) {
+  const n = Math.round(v * 20 / 0.4);
+  return <span className="mono" style={{ color: n >= 4 ? '#3ccf8e' : n >= 1 ? '#a6d86a' : n > -2 ? '#e9c46a' : '#ff6b6b' }}>{n > 0 ? '+' : ''}{n}</span>;
 }
 
 export function shade(hex: string, pct: number) {

@@ -13,6 +13,8 @@ import type { Rng } from './rng.ts';
 import type { CampaignAction, Difficulty, GameState, Issue, Party } from './types.ts';
 import { uid } from './rng.ts';
 import { leaderDays } from './party.ts';
+import { stateMessageFit, stateSeats, TOUR_COST } from './statecampaign.ts';
+import type { StateCampaignMode } from './types.ts';
 
 export function aiQuality(d: Difficulty): number {
   return d === 'easy' ? 0.35 : d === 'hard' ? 0.9 : 0.65;
@@ -138,6 +140,43 @@ export function planAITurn(state: GameState, partyId: string, rng: Rng): Campaig
       if (b <= budget && tryAdd({ type: 'org_build', state: st, budget: b })) budget -= b;
     }
     if (q > 0.6 && Math.abs(state.pollBias[partyId] ?? 0) > 0.03 && homes[0]) tryAdd({ type: 'research', state: homes[0] });
+  }
+
+  // state-level plan: campaign where the party has the most at stake, and answer human
+  // players' statewide pushes where the AI is in contention
+  const stateVal = new Map<string, number>();
+  for (const t of targets.slice(0, 60)) stateVal.set(t.state, (stateVal.get(t.state) ?? 0) + t.v);
+  for (const h of human) {
+    if (h === partyId) continue;
+    for (const [code, st] of Object.entries(state.states)) {
+      const hs = st.spendLog?.[h] ?? 0;
+      if (hs > 5 && stateVal.has(code)) stateVal.set(code, stateVal.get(code)! + (hs / 20) * q * p.ai.aggression);
+    }
+  }
+  const stTargets = [...stateVal.entries()].sort((a, b) => b[1] - a[1]);
+  const stateIssue = (code: string): Issue => {
+    const st = state.states[code];
+    const cands = [st.primary, ...(st.secondary ?? [])].filter(Boolean) as Issue[];
+    if (!cands.length || rng.next() > q + 0.2) return bestIssue(state, p, rng, q);
+    return cands.sort((a, b) => stateMessageFit(state, p, b, code) - stateMessageFit(state, p, a, code))[0];
+  };
+  for (const [code] of stTargets.slice(0, 1 + Math.round(q * 2))) {
+    if (budget < 4) break;
+    const n = stateSeats(state, code, partyId).length;
+    const b = Math.round(clamp(budget * 0.3, 2, Math.min(60, n * 2 + 4)));
+    const mode: StateCampaignMode = state.stage === 'preparation' ? 'offices' : final ? 'ground' : rng.next() < 0.5 ? 'rallies' : 'media';
+    if (tryAdd({ type: 'state_campaign', state: code, issue: stateIssue(code), budget: b, mode })) budget -= b;
+  }
+  // campaigners on tour: regional figures mostly at home, national ones where it is close
+  for (const l of p.leaders ?? []) {
+    for (let d = 0; d < l.days; d++) {
+      if (budget < TOUR_COST + 1) break;
+      const code = l.reach === 'regional' && stateVal.has(l.home) && rng.next() < 0.65 ? l.home : stTargets[(d + rng.int(0, 2)) % Math.max(1, Math.min(4, stTargets.length))]?.[0];
+      if (!code) break;
+      const own = state.states[code].primary;
+      const issue = own && l.strong.includes(own) ? own : l.strong[rng.int(0, l.strong.length - 1)] ?? stateIssue(code);
+      if (tryAdd({ type: 'leader_tour', state: code, leaderId: l.id, issue, tour: 'statewide' })) budget -= TOUR_COST;
+    }
   }
 
   // leader rallies at the best targets

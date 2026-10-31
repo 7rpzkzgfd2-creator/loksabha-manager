@@ -11,6 +11,7 @@ import type { ActionOutcome, ActionType, CampaignAction, Constituency, GameState
 import { candidateAppeal } from './voters.ts';
 import { leaderDays, staffSkill, teamCapacity } from './party.ts';
 import { remember, report, schedule } from './world.ts';
+import { resolveLeaderTour, resolveStateCampaign, STATE_CAMPAIGN_RANGE, TOUR_COST } from './statecampaign.ts';
 
 export interface ActionSpec {
   type: ActionType;
@@ -34,6 +35,8 @@ export const ACTIONS: Record<ActionType, ActionSpec> = {
   org_build: { type: 'org_build', name: 'Build organisation', scope: 'state', baseCost: 0, leaderDays: 0, team: 1, scalable: [3, 50], desc: 'Hire organisers and open booth committees. Slow: most of the effect lands over the next few weeks and lasts beyond this election.' },
   research: { type: 'research', name: 'Commission research', scope: 'state', baseCost: 1.5, leaderDays: 0, team: 0, desc: 'Private polling and candidate vetting in a state. Narrows your forecast error and can expose risky candidates.' },
   policy_announce: { type: 'policy_announce', name: 'Announce a policy', scope: 'national', baseCost: 1, leaderDays: 1, team: 0, desc: 'Add a policy to the manifesto mid-campaign. Late promises look opportunistic if they clash with your record.' },
+  state_campaign: { type: 'state_campaign', name: 'State campaign', scope: 'state', baseCost: 0, leaderDays: 0, team: 1, scalable: STATE_CAMPAIGN_RANGE, needsIssue: true, desc: 'One plan for a whole state: rally circuit, media, ground game or offices. The effect is shared statewide and spread seat by seat according to local issues, candidates and how close each seat is.' },
+  leader_tour: { type: 'leader_tour', name: 'Leader tour', scope: 'state', baseCost: TOUR_COST, leaderDays: 0, team: 0, needsIssue: true, desc: 'Send one of your campaigners to a state, statewide or to up to three seats. Each campaigner has limited days, pulls hardest at home, and repeat visits matter less.' },
   volunteer_drive: { type: 'volunteer_drive', name: 'Volunteer drive', scope: 'state', baseCost: 1, leaderDays: 0, team: 1, desc: 'Recruit and re-energise volunteers in a state. Raises morale and local organisation a little.' },
 };
 
@@ -89,6 +92,29 @@ export function validateAction(state: GameState, a: CampaignAction, queued: Camp
     if (state.stage === 'preparation') return 'During preparation, edit the manifesto directly instead.';
   }
   if (spec.scalable && (a.budget === undefined || a.budget < spec.scalable[0] || a.budget > spec.scalable[1])) return `Budget must be between ₹${spec.scalable[0]} and ₹${spec.scalable[1]} crore.`;
+  if (a.type === 'state_campaign') {
+    if (!a.mode || !['rallies', 'media', 'ground', 'offices'].includes(a.mode)) return 'Pick a campaign type.';
+    if (!state.seats.some((c) => c.state === a.state && c.candidates[a.party])) return 'You have no candidates in this state.';
+    if ((a.seats?.length ?? 0) > 3) return 'At most three priority seats.';
+    if (a.seats?.some((id) => !state.seats.some((c) => c.id === id && c.state === a.state))) return 'Priority seats must be in the same state.';
+    if (p.controlledBy === 'human') {
+      const alloc = p.stateBudget?.[a.state!] ?? 0;
+      const spent = (p.stateSpent?.[a.state!] ?? 0) + queued.filter((q) => q.state === a.state && q.type === 'state_campaign').reduce((s, q) => s + actionCost(q, p), 0);
+      if (alloc <= 0) return 'Set a budget for this state first.';
+      if (spent + (a.budget ?? 0) > alloc + 1e-9) return `Only ₹${Math.max(0, Math.round((alloc - spent) * 10) / 10)} cr left in this state's budget.`;
+    }
+  }
+  if (a.type === 'leader_tour') {
+    const l = p.leaders?.find((x) => x.id === a.leaderId);
+    if (!l) return 'Pick a campaigner.';
+    const used = queued.filter((q) => q.type === 'leader_tour' && q.leaderId === a.leaderId).length;
+    if (used >= l.days) return `${l.name} has no free days left this week.`;
+    if (!state.seats.some((c) => c.state === a.state && c.candidates[a.party])) return 'You have no candidates in this state.';
+    if (a.tour === 'targeted') {
+      if (!a.seats?.length || a.seats.length > 3) return 'Pick one to three seats for a targeted visit.';
+      if (a.seats.some((id) => !state.seats.some((c) => c.id === id && c.state === a.state && c.candidates[a.party]))) return 'Targeted seats must be ones you contest in this state.';
+    }
+  }
   const u = usage(state, a.party, [...queued, a]);
   const lim = limits(state, a.party);
   if (u.funds > lim.funds + 1e-9) return 'Not enough money in the war chest.';
@@ -200,7 +226,7 @@ export function resolveAction(state: GameState, a: CampaignAction, rng: Rng): Ac
         p.stats.trust = clamp(p.stats.trust - 0.01);
         state.states[c.state].mood[a.party] = (state.states[c.state].mood[a.party] ?? 0) - 0.015;
         out.notes.push('A line from the speech is being clipped and circulated out of context.');
-        report(state, rng, { headline: `${a.speaker === 'leader' ? p.leader : cand?.name ?? 'Candidate'}'s remark at ${c.name} rally draws fire`, fact: `A remark at a ${p.short} rally in ${c.name} drew criticism from rivals.`, parties: [p.id], tone: -0.4, region: STATE_BY_CODE[c.state].region });
+        report(state, rng, { headline: `Remark at ${p.short} rally in ${c.name} draws fire`, fact: `A remark at a ${p.short} rally in ${c.name} drew criticism from rivals.`, parties: [p.id], tone: -0.4, region: STATE_BY_CODE[c.state].region });
       }
       c.pending[a.party] = (c.pending[a.party] ?? 0) + persuasion; // lands next turn: attention takes time to become votes
       c.mobilisation[a.party] = (c.mobilisation[a.party] ?? 0) + mobil;
@@ -264,7 +290,7 @@ export function resolveAction(state: GameState, a: CampaignAction, rng: Rng): Ac
     if (hostile) {
       p.stats.trust = clamp(p.stats.trust - 0.01);
       out.notes.push('Reporters pressed on an awkward subject and the answer did not satisfy.');
-      report(state, rng, { headline: `${p.short} press meet derailed by tough questions`, fact: `${p.leader} faced questions at a press conference.`, parties: [p.id], tone: -0.3 });
+      report(state, rng, { headline: `${p.short} press meet derailed by tough questions`, fact: `${p.short} leaders faced questions at a press conference.`, parties: [p.id], tone: -0.3 });
     }
     out.quality = clamp(q - 0.3, -1, 1);
     out.reported = q > 0.6 ? 'The message led the evening bulletins.' : q > 0.2 ? 'Picked up, but competing with other stories.' : 'Coverage focused on something else entirely.';
@@ -322,6 +348,10 @@ export function resolveAction(state: GameState, a: CampaignAction, rng: Rng): Ac
     } else report(state, rng, { headline: `${p.short} promises ${pol.name.toLowerCase()}`, fact: `${p.short} added ${pol.name} to its manifesto.`, parties: [p.id], tone: 0.15 });
     out.quality = clamp(0.3 - clash * 0.2, -1, 1);
     out.reported = `${pol.name} is now part of our platform.`;
+  } else if (a.type === 'state_campaign') {
+    resolveStateCampaign(state, a, p, rng, out);
+  } else if (a.type === 'leader_tour') {
+    resolveLeaderTour(state, a, p, rng, out);
   } else if (a.type === 'volunteer_drive') {
     out.where = STATE_BY_CODE[a.state!].name;
     const vol = staffSkill(p, 'volunteer_coordinator');

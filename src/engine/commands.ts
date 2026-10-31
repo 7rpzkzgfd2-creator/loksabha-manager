@@ -14,6 +14,7 @@ import { makeCoalitionOffer } from './coalition.ts';
 import { adjustFaction } from './party.ts';
 import { manifestoCredibility } from './ai.ts';
 import { remember } from './world.ts';
+import { autoAllocate, outstandingAllocation } from './statecampaign.ts';
 
 export type Command =
   | { type: 'queue_action'; action: CampaignAction }
@@ -31,6 +32,8 @@ export type Command =
   | { type: 'poach'; seat: string; from: string; mult: number }
   | { type: 'backdoor'; amount: number }
   | { type: 'coalition_offer'; to: string; ministries: number; concession?: Issue; pm: boolean }
+  | { type: 'set_state_budget'; state: string; amount: number }
+  | { type: 'auto_allocate'; total: number; strategy: 'competitive' | 'even' | 'defend' | 'focus' }
   | { type: 'mark_read'; id: string }
   | { type: 'mark_all_read' };
 
@@ -162,6 +165,27 @@ export function applyCommand(state: GameState, party: string, cmd: Command): Com
     case 'coalition_offer': {
       const t = makeCoalitionOffer(state, party, cmd.to, cmd.ministries, cmd.concession, cmd.pm, rng);
       return done(t, t.startsWith('Offer sent'));
+    }
+    case 'set_state_budget': {
+      if (!STATE_BY_CODE[cmd.state]) return { ok: false, text: 'Unknown state.' };
+      const amount = Math.round(Number(cmd.amount) * 10) / 10;
+      if (!Number.isFinite(amount) || amount < 0) return { ok: false, text: 'Enter a budget of zero or more.' };
+      p.stateBudget ??= {}; p.stateSpent ??= {};
+      const spent = p.stateSpent[cmd.state] ?? 0;
+      if (amount < spent) return { ok: false, text: `Already spent ₹${spent} cr there; the budget cannot go below that.` };
+      const others = outstandingAllocation({ ...p, stateBudget: { ...p.stateBudget, [cmd.state]: 0 } });
+      if (others + (amount - spent) > p.stats.funds + 1e-9) return { ok: false, text: `Not enough unallocated money. ₹${Math.max(0, Math.round((p.stats.funds - others) * 10) / 10)} cr is free to allocate.` };
+      p.stateBudget[cmd.state] = amount;
+      return { ok: true, text: `${STATE_BY_CODE[cmd.state].name}: budget set to ₹${amount} cr.` };
+    }
+    case 'auto_allocate': {
+      const total = Math.min(Number(cmd.total), p.stats.funds);
+      if (!(total > 0)) return { ok: false, text: 'Nothing to allocate.' };
+      const plan = autoAllocate(state, party, total, cmd.strategy);
+      p.stateBudget = {};
+      for (const [code, v] of Object.entries(p.stateSpent ?? {})) p.stateBudget[code] = v;
+      Object.assign(p.stateBudget, plan);
+      return { ok: true, text: `Allocated ₹${Math.round(total)} cr across ${Object.keys(plan).length} states.` };
     }
     case 'mark_read': { const m = state.inbox.find((x) => x.id === cmd.id); if (m) m.read = true; return { ok: true, text: '' }; }
     case 'mark_all_read': { for (const m of state.inbox) if (m.party === party) m.read = true; return { ok: true, text: '' }; }

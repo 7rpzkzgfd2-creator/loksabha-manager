@@ -12,6 +12,7 @@ import National from './screens/National.tsx';
 import Seats from './screens/Seats.tsx';
 import { PartyScreen, Candidates, Staff, Finances } from './screens/PartyScreens.tsx';
 import { Campaign, Backroom } from './screens/Campaign.tsx';
+import { StatesHQ, StateDetail } from './screens/States.tsx';
 import { Manifesto, Alliances } from './screens/Platform.tsx';
 import { Media, Polling, Events } from './screens/World.tsx';
 import Results from './screens/Results.tsx';
@@ -61,7 +62,8 @@ export default function Shell() {
       { s: 'polling', label: 'Polling', ico: '∿' },
     ] },
     { title: 'Campaign', items: [
-      { s: 'campaign', label: 'Campaign planner', ico: '▶', count: queued.length, soft: true },
+      { s: 'states', label: 'State campaign HQ', ico: '▣' },
+      { s: 'campaign', label: 'Weekly plan & extras', ico: '▶', count: queued.length, soft: true },
       { s: 'manifesto', label: 'Manifesto', ico: '❡' },
       { s: 'alliances', label: 'Alliances', ico: '⚭' },
       { s: 'backroom', label: 'Backroom', ico: '◐' },
@@ -88,7 +90,7 @@ export default function Shell() {
   const titles: Record<Screen, string> = {
     home: 'Home', inbox: 'Inbox', warroom: 'War room', national: 'National overview', map: 'Map', seats: 'Constituencies', party: 'Party', candidates: 'Candidates', staff: 'Staff',
     campaign: 'Campaign planner', backroom: 'Backroom', manifesto: 'Manifesto', alliances: 'Alliances', media: 'Media', polling: 'Polling', finances: 'Finances', events: 'Events & memory',
-    results: 'Results', formation: 'Government formation', governance: 'Government', career: 'Career history', settings: 'Settings',
+    states: 'State campaign HQ', state: 'State campaign', results: 'Results', formation: 'Government formation', governance: 'Government', career: 'Career history', settings: 'Settings',
   };
 
   const me_ = mpLobby?.players.find((x) => x.id === mpInfo?.playerId);
@@ -114,7 +116,7 @@ export default function Shell() {
             <div key={grp.title}>
               <div className="grp upper">{grp.title}</div>
               {grp.items.filter((i) => i.show !== false).map((i) => (
-                <a key={i.s} className={screen === i.s ? 'on' : ''} onClick={() => go(i.s)} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && go(i.s)}>
+                <a key={i.s} className={screen === i.s || (screen === 'state' && i.s === 'states') ? 'on' : ''} onClick={() => go(i.s)} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && go(i.s)}>
                   <span className="ico">{i.ico}</span>{i.label}{!!i.count && <span className={`cnt ${i.soft ? 'soft' : ''}`}>{i.count}</span>}
                 </a>
               ))}
@@ -156,6 +158,8 @@ export default function Shell() {
           {screen === 'staff' && <Staff />}
           {screen === 'finances' && <Finances />}
           {screen === 'campaign' && <Campaign />}
+          {screen === 'states' && <StatesHQ />}
+          {screen === 'state' && <StateDetail />}
           {screen === 'backroom' && <Backroom />}
           {screen === 'manifesto' && <Manifesto />}
           {screen === 'alliances' && <Alliances />}

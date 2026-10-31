@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { STATES_LIST, STATE_BY_CODE, ISSUES, STAFF_ROLE_NAME, STAFF_ROLES, aspirants, market, candidateAppeal, ACTIONS, teamCapacity, leaderDays } from '../../engine/index.ts';
+import { STATES_LIST, STATE_BY_CODE, ISSUES, STAFF_ROLE_NAME, STAFF_ROLES, aspirants, market, candidateAppeal, candidateFit, ACTIONS, teamCapacity, leaderDays } from '../../engine/index.ts';
 import type { ActionType } from '../../engine/index.ts';
 import { useGame, useStore } from '../store.tsx';
-import { Attr, Confirm, Meter, PageHead, Panel, Prov, Stat, Symbol, Table, attr20, AttrColor, fmtCr, Seg } from '../components.tsx';
+import { Attr, Confirm, FitNum, IssueChips, Meter, PageHead, Panel, Prov, Stat, Symbol, Table, attr20, AttrColor, fmtCr, Seg } from '../components.tsx';
 import { CandidateCard } from './SeatDetail.tsx';
 import { ratingFor, RATING_COLOR } from '../derive.ts';
 
@@ -84,12 +84,13 @@ export function Candidates() {
   const g = useGame();
   const { me, run, openSeat } = useStore();
   const [sel, setSel] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'marginal' | 'weak' | 'unvetted'>('marginal');
+  const [filter, setFilter] = useState<'all' | 'marginal' | 'weak' | 'unvetted' | 'misfit'>('marginal');
   const rows = useMemo(() => g.seats.filter((c) => c.candidates[me]).filter((c) => {
     const pr = g.seatForecast[c.id]?.probs[me] ?? 0;
     if (filter === 'marginal') return pr > 0.2 && pr < 0.8;
     if (filter === 'weak') return candidateAppeal(c, me) < 0.45;
     if (filter === 'unvetted') return !c.candidates[me].vetted;
+    if (filter === 'misfit') return candidateFit(g, c, c.candidates[me]).seatFit < -0.05;
     return true;
   }), [g, me, filter]);
   const c = sel ? g.seats.find((x) => x.id === sel) : null;
@@ -97,7 +98,7 @@ export function Candidates() {
   return (
     <>
       <PageHead title="Candidates" sub={prep ? 'Tickets are open until the end of week 2. Popular outsiders win votes but upset loyalists; loyal organisers keep the party calm.' : 'Tickets are locked for this election.'}>
-        <Seg value={filter} onChange={setFilter} options={[{ v: 'marginal', label: 'Marginal seats' }, { v: 'weak', label: 'Weak candidates' }, { v: 'unvetted', label: 'Unvetted' }, { v: 'all', label: 'All' }]} />
+        <Seg value={filter} onChange={setFilter} options={[{ v: 'marginal', label: 'Marginal seats' }, { v: 'weak', label: 'Weak candidates' }, { v: 'unvetted', label: 'Unvetted' }, { v: 'misfit', label: 'Poor issue fit' }, { v: 'all', label: 'All' }]} />
       </PageHead>
       <div className="grid g-main">
         <Panel className="flush">
@@ -105,7 +106,10 @@ export function Candidates() {
             <Table rows={rows} rowKey={(r) => r.id} selected={sel} onRow={(r) => setSel(r.id)} max={200} initialSort={['p', -1]} cols={[
               { key: 'n', label: 'Seat', render: (r) => <b>{r.name}</b>, sort: (r) => r.name },
               { key: 's', label: 'State', render: (r) => r.state, sort: (r) => r.state },
-              { key: 'k', label: 'Candidate', render: (r) => r.candidates[me].name, sort: (r) => r.candidates[me].name },
+              { key: 'k', label: 'Candidate', render: (r) => <>{r.candidates[me].name}{r.candidates[me].real && <span className="chip info" style={{ marginLeft: 6 }}>Real</span>}</>, sort: (r) => r.candidates[me].name },
+              { key: 'i', label: 'Issues', render: (r) => <IssueChips strong={r.candidates[me].strong} weak={r.candidates[me].weak} max={2} /> },
+              { key: 'sf', label: 'State fit', num: true, render: (r) => <FitNum v={candidateFit(g, r, r.candidates[me]).stateFit} />, sort: (r) => candidateFit(g, r, r.candidates[me]).stateFit },
+              { key: 'cf', label: 'Seat fit', num: true, render: (r) => <FitNum v={candidateFit(g, r, r.candidates[me]).seatFit} />, sort: (r) => candidateFit(g, r, r.candidates[me]).seatFit },
               { key: 'a', label: 'Appeal', num: true, render: (r) => <span style={{ color: AttrColor(attr20(candidateAppeal(r, me))) }}>{attr20(candidateAppeal(r, me))}</span>, sort: (r) => candidateAppeal(r, me) },
               { key: 'v', label: 'Vetted', render: (r) => r.candidates[me].vetted ? (r.candidates[me].controversy > 0.4 ? <span className="chip warn">Risk</span> : <span className="chip good">Clear</span>) : <span className="dim">No</span> },
               { key: 'r', label: 'Rating', render: (r) => { const x = ratingFor(g, r, me); return <span style={{ color: RATING_COLOR[x] }}>{x}</span>; } },
@@ -118,14 +122,14 @@ export function Candidates() {
             <>
               <Panel title={<>{c.name} <span className="dim">· {STATE_BY_CODE[c.state].name}</span></>} extra={<button className="btn sm ghost" onClick={() => openSeat(c.id)}>Seat detail ›</button>}>
                 <div className="upper" style={{ marginBottom: 6 }}>Current candidate</div>
-                <CandidateCard k={c.candidates[me]} own />
+                <CandidateCard k={c.candidates[me]} own fit={candidateFit(g, c, c.candidates[me])} />
               </Panel>
               {prep && (
                 <Panel title="Aspirants for the ticket">
                   <div className="col">
                     {aspirants(g, c.id, me).map((k, i) => (
                       <div key={k.id} className="col" style={{ gap: 6 }}>
-                        <CandidateCard k={k} own />
+                        <CandidateCard k={k} own fit={candidateFit(g, c, k)} />
                         <button className="btn sm" onClick={() => run({ type: 'pick_candidate', seat: c.id, index: i })}>Give {k.name.split(' ')[0]} the ticket</button>
                       </div>
                     ))}

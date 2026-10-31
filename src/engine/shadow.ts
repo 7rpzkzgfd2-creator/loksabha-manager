@@ -30,6 +30,7 @@ export function poachQuote(state: GameState, buyer: string, seatId: string, from
   const c = state.seats.find((x) => x.id === seatId);
   const k = c?.candidates[from];
   if (!c || !k || from === buyer || from === 'OTH') return null;
+  if (k.real) return null; // real politicians are never offered bribes in the game
   const rival = state.parties[from];
   const price = Math.round((2 + 18 * k.localRep + (k.incumbent ? 8 : 0) + 10 * k.loyalty) * 10) / 10;
   const odds = clamp(0.2 + (1 - k.loyalty) * 0.5 + (1 - rival.stats.cohesion) * 0.3 - (rival.stats.momentum > state.parties[buyer].stats.momentum ? 0.1 : 0), 0.05, 0.85);

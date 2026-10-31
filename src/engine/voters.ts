@@ -18,10 +18,13 @@ import { SEGMENT_BY_ID, POLICY_BY_ID } from './data/catalog.ts';
 import { clamp } from './rng.ts';
 import type { Rng } from './rng.ts';
 import type { Constituency, GameState, Issue, Party, SegmentId, SeatResult } from './types.ts';
+import { sentimentShift } from './traits.ts';
 
 export const K_FIT = 0.9;
 export const K_LEADER = 0.7;
 export const K_CAND = 0.55;
+export const K_CAND_ISSUE = 0.3; // candidate's personal credibility on what this seat's voters care about
+export const K_SENTIMENT = 0.35; // change in issue satisfaction, for the governing parties
 
 export function ideoDistance(a: Party, b: Party): number {
   const i = a.ideology, j = b.ideology;
@@ -36,7 +39,7 @@ export function candidateAppeal(c: Constituency, party: string): number {
   return clamp(a);
 }
 
-function salienceFor(state: GameState, c: Constituency, seg: SegmentId, issue: Issue): number {
+export function salienceFor(state: GameState, c: Constituency, seg: SegmentId, issue: Issue): number {
   const sd = SEGMENT_BY_ID[seg];
   const base = sd.salience[issue] ?? 0.05;
   const nat = state.salience[issue] ?? 0.5;
@@ -49,9 +52,10 @@ function salienceFor(state: GameState, c: Constituency, seg: SegmentId, issue: I
 export function issueFit(state: GameState, c: Constituency, seg: SegmentId, p: Party): number {
   const sd = SEGMENT_BY_ID[seg];
   let fit = 0, tot = 0;
+  const cred = state.states[c.state].cred?.[p.id];
   for (const issue of Object.keys(p.issueOwn) as Issue[]) {
     const w = salienceFor(state, c, seg, issue);
-    fit += w * (p.issueOwn[issue] - 0.5);
+    fit += w * (p.issueOwn[issue] + (cred?.[issue] ?? 0) - 0.5);
     tot += w;
   }
   fit = tot > 0 ? fit / tot : 0;
@@ -74,11 +78,25 @@ export function structuralUtility(state: GameState, c: Constituency, seg: Segmen
     + K_LEADER * (p.stats.leaderPop - 0.5) * p.stats.leaderCentrality * sd.leaderSens;
 }
 
+// How well a candidate's own strong and weak issues match what this segment in this seat
+// cares about. Separate from the party's credibility: a candidate strong on jobs helps
+// most where jobs matter and barely at all where they do not.
+export function candidateIssueFit(state: GameState, c: Constituency, seg: SegmentId, party: string): number {
+  const k = c.candidates[party];
+  if (!k || (!k.strong?.length && !k.weak?.length)) return 0;
+  let fit = 0, tot = 0;
+  for (const t of k.strong ?? []) fit += t.level * salienceFor(state, c, seg, t.issue);
+  for (const t of k.weak ?? []) fit -= t.level * salienceFor(state, c, seg, t.issue);
+  for (const i of Object.keys(state.salience) as Issue[]) tot += salienceFor(state, c, seg, i);
+  return tot > 0 ? clamp(fit / tot * 2, -0.4, 0.4) : 0;
+}
+
 export function dynamicUtility(state: GameState, c: Constituency, seg: SegmentId, p: Party): number {
   const sd = SEGMENT_BY_ID[seg];
   const st = state.states[c.state];
   let u = p.stats.popularity;
   u += K_CAND * (candidateAppeal(c, p.id) - 0.5);
+  u += K_CAND_ISSUE * candidateIssueFit(state, c, seg, p.id);
   u += st.mood[p.id] ?? 0;
   u += (st.airwar[p.id] ?? 0) * sd.digital;
   u += (c.persuasion[p.id] ?? 0) * sd.ground;
@@ -87,6 +105,7 @@ export function dynamicUtility(state: GameState, c: Constituency, seg: SegmentId
   if (gov && (gov.pmParty === p.id || gov.partners.includes(p.id))) {
     const weight = gov.pmParty === p.id ? 1 : 0.5;
     u += weight * 0.5 * (gov.approval - 0.5);
+    u += weight * K_SENTIMENT * sentimentShift(st);
   }
   return u;
 }

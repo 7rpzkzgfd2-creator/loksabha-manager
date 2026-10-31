@@ -15,6 +15,9 @@ import type {
 import { buildSeatModel, calibrateSeat, evaluateSeat, toSeatResult } from './voters.ts';
 import { computeForecast } from './forecast.ts';
 import { recomputeCohesion } from './party.ts';
+import { applyBranding, buildLeaders, generateTraits, initStateIssues } from './traits.ts';
+import { CANDIDACIES, LEADER_BY_ID } from './data/politicians.ts';
+import type { CandidacyDef } from './data/politicians.ts';
 
 export const STATES_LIST = STATES;
 export const STATE_BY_CODE: Record<string, StateDef> = Object.fromEntries(STATES.map((s) => [s.code, s]));
@@ -42,6 +45,29 @@ export function makeCandidate(rng: Rng, party: Party, stateCode: string, quality
   if (profile === 'technocrat') { k.admin = clamp(k.admin + 0.25); k.communication = clamp(k.communication - 0.1); k.ethics = clamp(k.ethics + 0.1); }
   if (profile === 'dynast') { k.localRep = clamp(k.localRep + 0.15); k.ethics = clamp(k.ethics - 0.05); k.controversy = clamp(k.controversy + 0.1); }
   if (profile === 'turncoat') { k.localRep = clamp(k.localRep + 0.15); k.loyalty = clamp(k.loyalty - 0.35); }
+  Object.assign(k, generateTraits(rng, (k.localRep + k.communication + k.admin) / 3, profile, party.manifesto?.policies ? topIssues(party) : []));
+  k.recognition = clamp(k.localRep * 0.5 + (k.incumbent ? 0.2 : 0));
+  return k;
+}
+
+function topIssues(p: Party): Issue[] {
+  return (Object.entries(p.issueOwn ?? {}) as [Issue, number][]).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([i]) => i);
+}
+
+// A real politician contesting this seat in this scenario. Attributes are gameplay
+// estimates; the person never gets controversy risk, since the game must not invent
+// allegations about real people.
+function realCandidate(rng: Rng, p: Party, d: CandidacyDef, scenario: string): Candidate {
+  const q = (base: number) => clamp(rng.normal(base, 0.08), 0.2, 0.97);
+  const lead = LEADER_BY_ID[d.id];
+  const tr = makeRng(hash(`real:${d.id}:${scenario}`));
+  const k: Candidate = {
+    id: `real_${d.id}_${d.seat.replace(/\W+/g, '')}`, name: d.name, party: p.id,
+    localRep: q(0.45 + d.recognition * 0.35), communication: q(0.5 + d.recognition * 0.3), admin: q(0.6), loyalty: q(0.8), organisation: q(0.6),
+    ethics: 0.7, controversy: 0, incumbent: false, vetted: true, profile: 'party_organiser', age: 50,
+    real: d.id, recognition: d.recognition,
+  };
+  Object.assign(k, generateTraits(tr, 0.5 + d.recognition * 0.3, 'party_organiser', lead?.strong ?? topIssues(p), lead?.weak ?? [], true));
   return k;
 }
 
@@ -181,9 +207,16 @@ export function createGame(config: ScenarioConfig): GameState {
   const salience = Object.fromEntries(ALL_ISSUES.map((i) => [i, 0.45])) as Record<Issue, number>;
   Object.assign(salience, sc.salience);
 
+  for (const p of Object.values(parties)) {
+    if (!p.custom) applyBranding(p, sc.id);
+    p.leaders = buildLeaders(p, sc.id);
+    p.stateBudget = {}; p.stateSpent = {};
+  }
+
   const states: GameState['states'] = {};
   for (const st of STATES) {
-    states[st.code] = { code: st.code, mood: {}, airwar: {}, salience: { ...st.issues }, disaster: 0 };
+    states[st.code] = { code: st.code, mood: {}, airwar: {}, salience: {}, disaster: 0 };
+    initStateIssues(states[st.code], st, salience, config.sandbox?.economy ?? sc.economy);
     const m = config.sandbox?.stateMood?.[st.code];
     if (m !== undefined) states[st.code].mood[player.id] = m;
   }
@@ -267,6 +300,7 @@ export function createGame(config: ScenarioConfig): GameState {
     }
   }
 
+  placeRealCandidates(state, rng);
   for (const c of seats) calibrateSeat(state, c);
 
   // A simulated "previous" contest seeds incumbents. It is labelled simulated in the UI.
@@ -295,6 +329,25 @@ export function createGame(config: ScenarioConfig): GameState {
   return state;
 }
 
+// Put real politicians on the ballot where they contested in this scenario. Where an
+// alliance shares the seat, the seat goes to that person's party, as it did in reality.
+function placeRealCandidates(state: GameState, rng: Rng) {
+  const sc = state.config.scenarioId;
+  for (const d of CANDIDACIES) {
+    if (d.scenario !== sc) continue;
+    const p = state.parties[d.party];
+    const c = state.seats.find((x) => x.state === d.state && x.name === d.seat);
+    if (!p || !c) continue;
+    const a = state.alliances.find((x) => x.members.includes(d.party));
+    if (a) {
+      for (const m of a.members) if (m !== d.party && c.candidates[m] && !a.friendlyFights.includes(c.state)) delete c.candidates[m];
+      a.seatAlloc[c.id] = d.party;
+    }
+    if ((c.base[d.party] ?? 0) < 0.012) c.base[d.party] = 0.012;
+    c.candidates[d.party] = realCandidate(rng, p, d, sc);
+  }
+}
+
 export function allocateSeats(state: GameState, a: Alliance) {
   const rng = makeRng(hash(a.id + state.turn) ^ state.rng);
   a.seatAlloc = {};
@@ -302,7 +355,8 @@ export function allocateSeats(state: GameState, a: Alliance) {
     const members = a.members.filter((m) => c.candidates[m]);
     if (members.length === 0) continue;
     if (a.friendlyFights.includes(c.state) && members.length > 1) continue;
-    const best = members.slice().sort((x, y) => (c.base[y] ?? 0) * (1 + (y === a.leader ? 0.05 : 0)) - (c.base[x] ?? 0) * (1 + (x === a.leader ? 0.05 : 0)))[0];
+    const realOwner = members.find((m) => c.candidates[m]?.real);
+    const best = realOwner ?? members.slice().sort((x, y) => (c.base[y] ?? 0) * (1 + (y === a.leader ? 0.05 : 0)) - (c.base[x] ?? 0) * (1 + (x === a.leader ? 0.05 : 0)))[0];
     a.seatAlloc[c.id] = best;
     for (const m of members) {
       if (m === best) continue;

@@ -14,3 +14,8 @@ export { SCENARIOS, SCENARIO_BY_ID } from './data/scenarios.ts';
 export { PARTY_DEFS, PARTY_BY_ID } from './data/parties.ts';
 export { POLICIES, POLICY_BY_ID, ISSUES, ISSUE_NAME, SEGMENTS, STAFF_ROLES, STAFF_ROLE_NAME, OUTLETS } from './data/catalog.ts';
 export { teamCapacity, leaderDays, staffSkill } from './party.ts';
+export { candidateFit, stateIntel, recommendations, seatCategory, seatFactors, stateSeats, stateMessageFit, leaderPull, outstandingAllocation, autoAllocate, STATE_MODES, STATE_CAMPAIGN_RANGE, TOUR_COST, CATEGORY_LABEL } from './statecampaign.ts';
+export type { CandidateFit, StateIntel, Recommendation, SeatCategory, Factor } from './statecampaign.ts';
+export { traitLevel, sentimentShift, migrateState, ensureTraits } from './traits.ts';
+export { candidateIssueFit } from './voters.ts';
+export { ELECTION_SYMBOLS, LEADERS, CANDIDACIES, DATA_NOTE, DATA_COMPILED, symbolFor } from './data/politicians.ts';

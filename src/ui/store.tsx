@@ -7,12 +7,14 @@ import {
 import type { CampaignAction, Command, CommandResult, GameState, GovAction, ScenarioConfig } from '../engine/index.ts';
 import { makeRng } from '../engine/rng.ts';
 import { saveGame } from './persist.ts';
+import { migrateState } from '../engine/traits.ts';
+import { STATE_BY_CODE } from '../engine/setup.ts';
 import * as mp from './mpClient.ts';
 
 export type Screen =
   | 'home' | 'inbox' | 'warroom' | 'national' | 'map' | 'seats' | 'party' | 'candidates' | 'staff'
   | 'campaign' | 'backroom' | 'manifesto' | 'alliances' | 'media' | 'polling' | 'finances' | 'events'
-  | 'results' | 'formation' | 'governance' | 'career' | 'settings';
+  | 'results' | 'formation' | 'governance' | 'career' | 'settings' | 'states' | 'state';
 
 interface Toast { id: number; text: string; bad?: boolean }
 
@@ -23,6 +25,8 @@ interface Store {
   go: (s: Screen) => void;
   seat: string | null;
   openSeat: (id: string | null) => void;
+  stateSel: string | null;
+  openState: (code: string) => void;
   start: (cfg: ScenarioConfig) => void;
   loadState: (g: GameState) => void;
   quit: () => void;
@@ -48,6 +52,7 @@ export const useGame = () => useContext(Ctx)!.game!;
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [game, setGame] = useState<GameState | null>(null);
+  const [stateSel, setStateSel] = useState<string | null>(null);
   const [screen, setScreen] = useState<Screen>('home');
   const [seat, setSeat] = useState<string | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -107,12 +112,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [mpInfo, toast]);
 
   const store: Store = useMemo(() => ({
-    game, me, screen, seat, toasts, busy, mpInfo, mpLobby,
+    game, me, screen, seat, toasts, busy, mpInfo, mpLobby, stateSel,
+    openState: (code) => { setStateSel(code); setScreen('state'); setSeat(null); document.querySelector('.main')?.scrollTo({ top: 0 }); },
     go: (s) => { setScreen(s); setSeat(null); document.querySelector('.main')?.scrollTo({ top: 0 }); },
     openSeat: setSeat,
     toast,
     start: (cfg) => { setBusy(true); setTimeout(() => { const g = createGame(cfg); commit(g); setScreen('home'); setBusy(false); }, 30); },
-    loadState: (g) => { setGame(g); setScreen(g.phase === 'counting' ? 'results' : g.phase === 'formation' ? 'formation' : g.phase === 'governance' ? 'governance' : 'home'); },
+    loadState: (g) => { migrateState(g, STATE_BY_CODE); setGame(g); setScreen(g.phase === 'counting' ? 'results' : g.phase === 'formation' ? 'formation' : g.phase === 'governance' ? 'governance' : 'home'); },
     quit: () => { setGame(null); setMpInfo(null); setMpLobby(null); mp.clearSession(); setScreen('home'); },
     run,
     queue: (a) => run({ type: 'queue_action', action: { ...a, party: me } as CampaignAction }),
@@ -153,7 +159,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     },
     nextCycle: () => { const g = gameRef.current; if (g) { commit(beginNextCycle(g)); setScreen('home'); } },
     setMp: (s) => { setMpInfo(s); if (s) mp.storeSession(s); else mp.clearSession(); },
-  }), [game, me, screen, seat, toasts, busy, mpInfo, mpLobby, run, toast, commit]);
+  }), [game, me, screen, seat, toasts, busy, mpInfo, mpLobby, run, toast, commit, stateSel]);
 
   return <Ctx.Provider value={store}>{children}</Ctx.Provider>;
 }

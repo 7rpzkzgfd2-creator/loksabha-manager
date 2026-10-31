@@ -1,3 +1,4 @@
+import { DATA_COMPILED } from '../../engine/index.ts';
 import { useEffect, useState } from 'react';
 import { SCENARIO_BY_ID } from '../../engine/index.ts';
 import { useGame, useStore } from '../store.tsx';
@@ -55,7 +56,9 @@ export default function Settings() {
             <p style={{ marginTop: 0 }}><b>Historical:</b> state and UT seat counts and constituency names follow the 2008 delimitation; recorded national seat totals for the largest parties come from Election Commission of India results and are shown only for comparison.</p>
             <p><b>Estimates:</b> starting vote shares by state, party attributes (leader standing, organisation, funds, cohesion), constituency electors, urbanisation and turnout are hand-set approximations to make the game behave plausibly. They are not official statistics or real polling.</p>
             <p><b>Simulated:</b> everything that happens in play, including "previous results", forecasts, polls, events and election outcomes. The model is not validated as a predictor of real elections.</p>
-            <p><b>Fictional:</b> all party leaders, candidates, staff and media outlets are invented people and organisations. Nothing they say in the game is a statement by a real person. Party symbols are original glyphs.</p>
+            <p><b>Real people:</b> in the 2014, 2019 and 2024 scenarios, party leaders and some candidates are real politicians. Their names, party in that election, the seat they contested and their public role are compiled from public records ({DATA_COMPILED}); check against ECI before citing. Their ratings and strong/weak issues are gameplay estimates. The 2029 scenario uses 2024 roles and affiliations, marked "as of 2024". Real people are never the subject of scandals, bribes or defections in the game. Everything that happens to them during play is simulated, not a real event.</p>
+            <p><b>Fictional:</b> all other candidates, staff and media outlets are invented. Simulated news never quotes a real person.</p>
+            <p><b>Party branding:</b> parties are shown with a plain name badge in party colours, and their ECI election symbol is named in text (for example "Lotus"). The game does not include or imitate official logos or symbol artwork.</p>
             <p style={{ marginBottom: 0 }}><b>Voters:</b> modelled as broad, overlapping economic and life-stage groups. Caste, religion and language enter only through each seat's historical baseline; no identity mechanically decides anyone's vote. Real boundary maps are not bundled; the map is a schematic tile layout.</p>
           </div>
         </Panel>

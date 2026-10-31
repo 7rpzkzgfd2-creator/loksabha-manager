@@ -169,7 +169,7 @@ export const SCENARIOS: Scenario[] = [
     ],
     economy: 0.0, salience: { security: 0.8, jobs: 0.6 },
     recorded: { source: 'Election Commission of India, 2019 results (largest parties only)', seats: { BJP: 303, INC: 52, DMK: 23, AITC: 22, YSRCP: 22, SHS: 18, JDU: 16, BJD: 12, BSP: 10, BRS: 9 } },
-    notes: ['TRS is shown under its later name BRS.', 'Shares are approximate estimates.'],
+    notes: ['The Telangana party appears under its 2019 name, TRS.', 'Shares are approximate estimates.'],
   },
   {
     id: 'ls2014', title: '2014: Wave Election', year: 2014, kind: 'historical',

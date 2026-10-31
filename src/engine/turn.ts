@@ -19,6 +19,9 @@ import { log, mail, remember, report } from './world.ts';
 import { calibrateSeat } from './voters.ts';
 import { makeCandidate } from './setup.ts';
 import { allocateSeats } from './setup.ts';
+import { stateDynamics } from './statecampaign.ts';
+import { baseImportance } from './traits.ts';
+import { SCENARIO_BY_ID } from './data/scenarios.ts';
 
 export function clone<T>(x: T): T {
   return structuredClone(x);
@@ -147,6 +150,8 @@ function worldDynamics(state: GameState, rng: Rng) {
     st.disaster *= 0.5;
   }
   state.economy = clamp(state.economy + rng.normal(0, 0.04), -1, 1);
+  const nat = SCENARIO_BY_ID[state.config.scenarioId]?.salience ?? {};
+  stateDynamics(state, rng, (code) => baseImportance(STATE_BY_CODE[code], nat));
   for (const k of Object.keys(state.salience) as (keyof typeof state.salience)[]) state.salience[k] = state.salience[k] * 0.96 + 0.45 * 0.04;
   if (state.government) state.government.approval = clamp(state.government.approval + state.economy * 0.01 + rng.normal(0, 0.005));
   for (const p of Object.values(state.parties)) {
@@ -278,6 +283,11 @@ export function beginNextCycle(prev: GameState): GameState {
   state.campaignTurn = 1;
   state.counting = null;
   state.events = state.events.filter((e) => !e.resolved).slice(-10);
+  for (const p of Object.values(state.parties)) {
+    p.stateBudget = {}; p.stateSpent = {};
+    for (const l of p.leaders ?? []) l.visits = {};
+  }
+  for (const st of Object.values(state.states)) { st.spendLog = {}; st.campSat = {}; }
   for (const c of state.seats) {
     const r = res.seats[c.id];
     c.prev = r;

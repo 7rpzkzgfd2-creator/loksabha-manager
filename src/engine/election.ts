@@ -1,5 +1,6 @@
 // Polling day, counting and the autopsy.
 
+import { seatFactors } from './statecampaign.ts';
 import { STATE_BY_CODE, MAJORITY } from './setup.ts';
 import { clamp } from './rng.ts';
 import type { Rng } from './rng.ts';
@@ -139,6 +140,19 @@ export function autopsy(state: GameState, res: ElectionResult, pid: string): Aut
   }
   if (state.memory.some((m) => m.party === pid && m.kind === 'finance' && m.cycle === state.cycle)) out.push({ party: pid, heading: 'The funding scandal hung over the campaign', detail: 'Exposure of off-the-books money cut trust and the leader’s standing. How many seats it cost cannot be separated cleanly from everything else.', confidence: 'uncertain' });
   if (p.stats.cohesion < 0.5) out.push({ party: pid, heading: 'A divided party', detail: `Cohesion was ${Math.round(p.stats.cohesion * 100)}% by polling day. Division weakens strategic loyalty: your supporters were likelier to desert you in seats where you looked out of contention.`, confidence: 'plausible' });
+  // why the closest seats went the way they did, from the same factors the vote model used
+  const keySeats = state.seats.filter((c) => c.candidates[pid] && (res.seats[c.id].winner === pid || res.seats[c.id].runnerUp === pid))
+    .sort((x, y) => res.seats[x.id].margin - res.seats[y.id].margin).slice(0, 4);
+  for (const c of keySeats) {
+    const r = res.seats[c.id];
+    const won = r.winner === pid;
+    const rival = won ? r.runnerUp : r.winner;
+    if (!rival) continue;
+    const f = seatFactors(state, c, pid, rival).slice(0, 3);
+    if (!f.length) continue;
+    const why = f.map((x) => `${x.label.toLowerCase()} ${x.value > 0 ? 'helped us' : 'helped ' + state.parties[rival].short}`).join('; ');
+    out.push({ party: pid, heading: `${won ? 'Held' : 'Lost'} ${c.name} by ${(r.margin * 100).toFixed(1)} points against ${state.parties[rival].short}`, detail: `Biggest modelled factors: ${why}.`, confidence: r.margin < 0.02 ? 'uncertain' : 'plausible' });
+  }
   const maj = seats >= MAJORITY;
   out.unshift({ party: pid, heading: maj ? 'Outright majority' : seats >= 200 ? 'Largest-party territory, short of a majority' : seats >= 50 ? 'A significant parliamentary force' : seats > 0 ? 'A foothold in Parliament' : 'Shut out', detail: maj ? 'You can form a government on your own.' : 'Government formation will depend on negotiations.', confidence: 'strong' });
   return out;

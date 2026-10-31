@@ -33,11 +33,12 @@ const TEMPLATES: Template[] = [
     id: 'candidate_controversy', scope: 'party',
     weight: (state, p) => {
       let risk = 0;
-      for (const c of state.seats) { const k = c.candidates[p.id]; if (k) risk += k.controversy * (1 - k.ethics); }
+      for (const c of state.seats) { const k = c.candidates[p.id]; if (k && !k.real) risk += k.controversy * (1 - k.ethics); }
       return clamp(risk / 60, 0, 0.35);
     },
     build: (state, p, rng) => {
-      const pool = state.seats.filter((c) => c.candidates[p.id]);
+      // never real people: the game does not invent allegations about them
+      const pool = state.seats.filter((c) => c.candidates[p.id] && !c.candidates[p.id].real);
       if (!pool.length) return null;
       const c = rng.weighted(pool, (x) => x.candidates[p.id].controversy * (1 - x.candidates[p.id].ethics) + 0.01);
       const k = c.candidates[p.id];
@@ -289,7 +290,7 @@ const TEMPLATES: Template[] = [
         let n = Number(ev.params.n);
         for (const c of state.seats) {
           if (n <= 0) break;
-          if (a.seatAlloc[c.id] === p.id && (c.base[partner] ?? 0) > 0.05) {
+          if (a.seatAlloc[c.id] === p.id && (c.base[partner] ?? 0) > 0.05 && !c.candidates[p.id]?.real) {
             const k = c.candidates[p.id];
             delete c.candidates[p.id];
             c.candidates[partner] = makeCandidate(rng, state.parties[partner], c.state, state.parties[partner].stats.candidateQuality);

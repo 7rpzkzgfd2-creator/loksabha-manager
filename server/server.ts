@@ -17,6 +17,8 @@ import {
 } from '../src/engine/index.ts';
 import type { Command, GameState } from '../src/engine/index.ts';
 import { makeRng } from '../src/engine/rng.ts';
+import { migrateState } from '../src/engine/traits.ts';
+import { STATE_BY_CODE } from '../src/engine/setup.ts';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const DATA = process.env.LSM_DATA ?? join(ROOT, 'server', 'data');
@@ -39,7 +41,7 @@ function persist(l: Lobby) {
 }
 for (const f of existsSync(DATA) ? readdirSync(DATA) : []) {
   if (!f.endsWith('.json')) continue;
-  try { const l = JSON.parse(readFileSync(join(DATA, f), 'utf8')) as Lobby; lobbies.set(l.id, l); } catch { console.error('could not load', f); }
+  try { const l = JSON.parse(readFileSync(join(DATA, f), 'utf8')) as Lobby; if (l.game) migrateState(l.game, STATE_BY_CODE); lobbies.set(l.id, l); } catch { console.error('could not load', f); }
 }
 
 // --- helpers
@@ -90,7 +92,7 @@ export function viewFor(g: GameState, party: string): GameState {
   v.playerParty = party;
   for (const p of Object.values(v.parties)) {
     if (p.id === party) continue;
-    p.stats.funds = 0; p.stats.shadowExposure = 0; p.stats.shadowTotal = 0; p.staff = [];
+    p.stats.funds = 0; p.stats.shadowExposure = 0; p.stats.shadowTotal = 0; p.staff = []; p.stateBudget = {}; p.stateSpent = {};
     for (const f of p.factions) f.grievances = [];
   }
   v.queued = { [party]: g.queued[party] ?? [] };

@@ -68,6 +68,32 @@ export interface Candidate {
   vetted: boolean;
   profile: 'local_notable' | 'party_organiser' | 'firebrand' | 'technocrat' | 'dynast' | 'turncoat';
   age: number;
+  // generated once with the candidate and saved with it; never rerolled
+  strong?: IssueTrait[];
+  weak?: IssueTrait[];
+  real?: string; // politician id when this is a real person contesting in this scenario
+  recognition?: number; // 0..1 name recognition
+}
+
+export interface IssueTrait { issue: Issue; level: number } // level 0.25..1
+
+// A campaigner the party can send to states. Real people in real-party scenarios; the
+// numbers are gameplay estimates.
+export interface PartyLeader {
+  id: string;
+  name: string;
+  role: string;
+  home: string;
+  reach: 'national' | 'regional';
+  recognition: number;
+  homePop: number;
+  awayPop: number;
+  effect: number;
+  strong: Issue[];
+  weak: Issue[];
+  days: number; // per week
+  real: boolean;
+  visits: Record<string, number>; // state -> tours this campaign (diminishing returns)
 }
 
 export interface ManifestoState {
@@ -120,6 +146,10 @@ export interface Party {
   custom: boolean;
   provenance: Provenance;
   seatsPrev: number;
+  displaySymbol?: string; // ECI election symbol name for this scenario
+  leaders?: PartyLeader[];
+  stateBudget?: Record<string, number>; // crore earmarked per state
+  stateSpent?: Record<string, number>; // crore spent through state campaigns and tours
 }
 
 export interface AIProfile {
@@ -175,6 +205,13 @@ export interface StateRuntime {
   airwar: Record<string, number>; // party -> digital/media stock
   salience: Partial<Record<Issue, number>>;
   disaster: number; // 0..1 active disruption
+  primary?: Issue; // most important issue in the state right now
+  secondary?: Issue[];
+  sentiment?: Partial<Record<Issue, number>>; // -1..1 satisfaction with how the issue is handled
+  sentiment0?: Partial<Record<Issue, number>>; // at the start; the baseline already reflects it
+  cred?: Record<string, Partial<Record<Issue, number>>>; // party credibility built in this state, on top of national
+  campSat?: Record<string, number>; // party -> 0..1 statewide campaign saturation
+  spendLog?: Record<string, number>; // party -> crore spent here by state campaigns this cycle
 }
 
 export interface Alliance {
@@ -275,7 +312,10 @@ export interface Proposal {
 
 export type ActionType =
   | 'rally' | 'town_hall' | 'door_to_door' | 'roadshow' | 'press_conference'
-  | 'digital' | 'org_build' | 'research' | 'policy_announce' | 'volunteer_drive';
+  | 'digital' | 'org_build' | 'research' | 'policy_announce' | 'volunteer_drive'
+  | 'state_campaign' | 'leader_tour';
+
+export type StateCampaignMode = 'rallies' | 'media' | 'ground' | 'offices';
 
 export interface CampaignAction {
   id: string; // client nonce, used for de-duplication
@@ -288,6 +328,12 @@ export interface CampaignAction {
   budget?: number; // crore for scalable actions
   policy?: string;
   withAllies?: boolean;
+  mode?: StateCampaignMode; // state_campaign
+  target?: SegmentId; // optional voter group focus
+  seats?: string[]; // optional priority constituencies (max 3)
+  intensity?: 'steady' | 'blitz';
+  leaderId?: string; // leader_tour
+  tour?: 'statewide' | 'targeted';
 }
 
 export interface ActionOutcome {
