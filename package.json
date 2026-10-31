@@ -1,0 +1,30 @@
+{
+  "name": "loksabha-manager",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "server": "node server/server.ts",
+    "build": "vite build",
+    "start": "node server/server.ts",
+    "test": "node --test tests/*.test.ts",
+    "balance": "node scripts/balance.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@vitejs/plugin-react": "4.3.4",
+    "typescript": "5.8.3",
+    "vite": "6.0.7"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
