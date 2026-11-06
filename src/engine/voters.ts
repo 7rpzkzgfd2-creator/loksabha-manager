@@ -91,6 +91,16 @@ export function candidateIssueFit(state: GameState, c: Constituency, seg: Segmen
   return tot > 0 ? clamp(fit / tot * 2, -0.4, 0.4) : 0;
 }
 
+// Difficulty and home-state pull for human parties. A new party needs a real foothold at
+// home or it can never break through first-past-the-post, whatever the player does.
+const DIFF_EDGE = { easy: 0.16, normal: 0.05, hard: 0 } as const;
+export function playerEdge(state: GameState, c: Constituency, p: Party): number {
+  if (p.controlledBy !== 'human') return 0;
+  let e = DIFF_EDGE[state.config.difficulty] ?? 0;
+  if (p.custom && p.homeStates.includes(c.state)) e += 0.1;
+  return e;
+}
+
 export function dynamicUtility(state: GameState, c: Constituency, seg: SegmentId, p: Party): number {
   const sd = SEGMENT_BY_ID[seg];
   const st = state.states[c.state];
@@ -101,6 +111,7 @@ export function dynamicUtility(state: GameState, c: Constituency, seg: SegmentId
   u += (st.airwar[p.id] ?? 0) * sd.digital;
   u += (c.persuasion[p.id] ?? 0) * sd.ground;
   if (c.incumbent === p.id) u += 0.03;
+  u += playerEdge(state, c, p);
   const gov = state.government;
   if (gov && (gov.pmParty === p.id || gov.partners.includes(p.id))) {
     const weight = gov.pmParty === p.id ? 1 : 0.5;

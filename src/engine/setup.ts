@@ -243,7 +243,7 @@ export function createGame(config: ScenarioConfig): GameState {
       if (parties.CUSTOM && config.customParty) {
         const home = config.customParty.homeState === st.code;
         const rec = config.customParty.recognition;
-        base.CUSTOM = home ? (0.05 + rec * 0.18) * Math.exp(rng.normal(0, 0.3)) : (STATE_BY_CODE[config.customParty.homeState]?.region === st.region ? 0.008 + rec * 0.01 : 0.004);
+        base.CUSTOM = home ? (0.1 + rec * 0.28) * Math.exp(rng.normal(0, 0.25)) : (STATE_BY_CODE[config.customParty.homeState]?.region === st.region ? 0.012 + rec * 0.02 : 0.004);
         tot += base.CUSTOM;
       }
       const others = Math.max(0.05, 1 - tot);

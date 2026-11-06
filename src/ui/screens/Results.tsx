@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { countingView, MAJORITY, SCENARIO_BY_ID, STATE_BY_CODE, STATES_LIST } from '../../engine/index.ts';
 import { useGame, useStore } from '../store.tsx';
+import { shareResult } from '../share.ts';
+import { SupportButton } from '../support.tsx';
 import { Hemicycle, PageHead, Panel, PartyChip, Prov, StackBar, Table, Tabs, orderParties } from '../components.tsx';
 
 export default function Results() {
@@ -105,7 +107,8 @@ function ElectionNight() {
 
 function FinalResults() {
   const g = useGame();
-  const { me, openSeat, go } = useStore();
+  const { me, openSeat, go, toast } = useStore();
+  const [sharing, setSharing] = useState(false);
   const [idx, setIdx] = useState(g.results.length - 1);
   const r = g.results[idx];
   const [tab, setTab] = useState<'overview' | 'autopsy' | 'states' | 'seats'>('overview');
@@ -121,6 +124,8 @@ function FinalResults() {
       <PageHead title={`${r.year} general election`} sub={`Simulated result. Turnout ${(r.turnout * 100).toFixed(1)}%.`}>
         <Prov p="simulated" />
         {g.results.length > 1 && <select className="select" style={{ width: 140 }} value={idx} onChange={(e) => setIdx(+e.target.value)}>{g.results.map((x, i) => <option key={i} value={i}>{x.year}</option>)}</select>}
+        <button className="btn primary" disabled={sharing} onClick={async () => { setSharing(true); try { const how = await shareResult(g, idx, me); if (how === 'downloaded') toast('Result card saved. Post it anywhere.'); } catch { toast('Could not make the result card.', true); } setSharing(false); }}>{sharing ? 'Making card…' : 'Share my result'}</button>
+        <SupportButton />
         {g.phase === 'formation' && <button className="btn continue" onClick={() => go('formation')}>Government formation ›</button>}
       </PageHead>
       <Tabs value={tab} onChange={setTab} options={[{ v: 'overview', label: 'Overview' }, { v: 'autopsy', label: 'Why it happened' }, { v: 'states', label: 'States' }, { v: 'seats', label: 'All seats' }]} />
