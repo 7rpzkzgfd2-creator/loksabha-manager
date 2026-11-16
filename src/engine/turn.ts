@@ -18,7 +18,8 @@ import { payroll, recomputeCohesion, staffSkill } from './party.ts';
 import { log, mail, remember, report } from './world.ts';
 import { calibrateSeat } from './voters.ts';
 import { makeCandidate } from './setup.ts';
-import { allocateSeats } from './setup.ts';
+import { allocateSeats, placeRealCandidates } from './setup.ts';
+import { FIXED_SEATS } from './data/politicians.ts';
 import { stateDynamics } from './statecampaign.ts';
 import { baseImportance } from './traits.ts';
 import { SCENARIO_BY_ID } from './data/scenarios.ts';
@@ -311,6 +312,8 @@ export function beginNextCycle(prev: GameState): GameState {
       if (pid === 'OTH' || c.base[pid] >= 0.012) c.candidates[pid] = pid === r.winner && keep && rng.chance(0.75) ? { ...keep, incumbent: true, age: keep.age + 5 } : makeCandidate(rng, p, c.state, p.stats.candidateQuality);
     }
   }
+  // fixed seats keep their named candidate every cycle
+  placeRealCandidates(state, rng, (id) => FIXED_SEATS.some((f) => f.id === id));
   for (const a of state.alliances) allocateSeats(state, a);
   for (const c of state.seats) calibrateSeat(state, c);
   for (const p of Object.values(state.parties)) {

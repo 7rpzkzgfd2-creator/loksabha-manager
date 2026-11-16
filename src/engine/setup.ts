@@ -331,10 +331,10 @@ export function createGame(config: ScenarioConfig): GameState {
 
 // Put real politicians on the ballot where they contested in this scenario. Where an
 // alliance shares the seat, the seat goes to that person's party, as it did in reality.
-function placeRealCandidates(state: GameState, rng: Rng) {
+export function placeRealCandidates(state: GameState, rng: Rng, only?: (id: string) => boolean) {
   const sc = state.config.scenarioId;
   for (const d of CANDIDACIES) {
-    if (d.scenario !== sc) continue;
+    if (d.scenario !== sc || (only && !only(d.id))) continue;
     const p = state.parties[d.party];
     const c = state.seats.find((x) => x.state === d.state && x.name === d.seat);
     if (!p || !c) continue;

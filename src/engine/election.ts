@@ -6,6 +6,7 @@ import { clamp } from './rng.ts';
 import type { Rng } from './rng.ts';
 import type { AutopsyItem, ElectionResult, GameState, SeatResult } from './types.ts';
 import { buildSeatModel, evaluateSeat, toSeatResult } from './voters.ts';
+import { FIXED_SEATS } from './data/politicians.ts';
 
 export function runPolling(state: GameState, rng: Rng) {
   const final: Record<string, SeatResult> = {};
@@ -20,11 +21,24 @@ export function runPolling(state: GameState, rng: Rng) {
     const shock = { party: {} as Record<string, number>, turnout: rng.normal(0, 0.02) };
     for (const p of m.all) shock.party[p] = nat[p] + stShock[c.state][p] + rng.normal(0, 0.08);
     const ev = evaluateSeat(state, m, shock);
+    const fixed = FIXED_SEATS.find((x) => x.state === c.state && x.seat === c.name);
+    if (fixed && ev.shares[fixed.party] !== undefined) forceOdds(ev.shares, fixed.party, rng.next() < fixed.winChance);
     final[c.id] = toSeatResult(state, c, ev.shares, ev.turnout, rng);
     seatRounds[c.id] = rng.int(12, 24);
   }
   state.counting = { round: 0, totalRounds: 24, seatRounds, final };
   state.phase = 'counting';
+}
+
+// Fixed-odds seats: the party finishes first exactly when `win`, by swapping its vote share
+// with whoever holds the place it should have. Margins stay as the campaign produced them.
+function forceOdds(shares: Record<string, number>, party: string, win: boolean) {
+  const ranked = Object.keys(shares).sort((a, b) => shares[b] - shares[a]);
+  const isFirst = ranked[0] === party;
+  if (win === isFirst) return;
+  const other = win ? ranked[0] : ranked[1];
+  if (!other) return;
+  [shares[party], shares[other]] = [shares[other], shares[party]];
 }
 
 // What the counting screen shows after `round` rounds. Early rounds are noisy because

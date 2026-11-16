@@ -150,7 +150,15 @@ export interface CandidacyDef { leader?: string; id: string; name: string; scena
 
 const C = (scenario: ScenarioId, party: string, state: string, seat: string, id: string, name: string, recognition = 0.6): CandidacyDef => ({ id, name, scenario, party, state, seat, recognition });
 
+// Requested by the game's owner, not a historical contest: Arun Sood stands for BJP in
+// Chandigarh in every scenario and cycle, and wins there 75% of the time whatever happens
+// in the campaign (applied on polling day in election.ts).
+export const FIXED_SEATS = [
+  { state: 'CH', seat: 'Chandigarh', party: 'BJP', id: 'arun-sood', name: 'Arun Sood', recognition: 0.55, winChance: 0.75 },
+];
+
 export const CANDIDACIES: CandidacyDef[] = [
+  ...(['ls2014', 'ls2019', 'ls2024', 'ls2029'] as ScenarioId[]).flatMap((sc) => FIXED_SEATS.map((f) => C(sc, f.party, f.state, f.seat, f.id, f.name, f.recognition))),
   // 2024
   C('ls2024', 'BJP', 'UP', 'Varanasi', 'modi', 'Narendra Modi', 0.98),
   C('ls2024', 'INC', 'UP', 'Rae Bareli', 'rahul', 'Rahul Gandhi', 0.92),
