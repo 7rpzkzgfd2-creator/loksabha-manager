@@ -19,3 +19,4 @@ export type { CandidateFit, StateIntel, Recommendation, SeatCategory, Factor } f
 export { traitLevel, sentimentShift, migrateState, ensureTraits } from './traits.ts';
 export { candidateIssueFit } from './voters.ts';
 export { ELECTION_SYMBOLS, LEADERS, CANDIDACIES, DATA_NOTE, DATA_COMPILED, symbolFor } from './data/politicians.ts';
+export { seatShares } from './tracker.ts';

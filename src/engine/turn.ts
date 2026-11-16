@@ -20,6 +20,7 @@ import { calibrateSeat } from './voters.ts';
 import { makeCandidate } from './setup.ts';
 import { allocateSeats, placeRealCandidates } from './setup.ts';
 import { FIXED_SEATS } from './data/politicians.ts';
+import { seatShares, shareReports } from './tracker.ts';
 import { stateDynamics } from './statecampaign.ts';
 import { baseImportance } from './traits.ts';
 import { SCENARIO_BY_ID } from './data/scenarios.ts';
@@ -44,6 +45,7 @@ export function advanceTurn(prev: GameState, submitted: Record<string, CampaignA
   const rng = makeRng(state.rng);
   const summary: string[] = [];
   const player = state.playerParty;
+  const sharesBefore = seatShares(state);
 
   for (const p of Object.values(state.parties)) for (const s of p.staff) s.workload = 0;
   settleEvents(state, rng);
@@ -107,6 +109,8 @@ export function advanceTurn(prev: GameState, submitted: Record<string, CampaignA
   rollEvents(state, rng);
   state.rng = rng.state();
   const poll = computeForecast(state, turnsLeft(state));
+  shareReports(state, sharesBefore, seatShares(state), outcomes, (party, subject, body) => mail(state, rng, { party, from: 'Data cell', subject, importance: 'normal', kind: 'report', body }));
+  state.prevShares = sharesBefore;
   // the public poll is everyone's shared, imperfect view
   state.polls.push(poll);
   for (const pid of state.partyOrder) {

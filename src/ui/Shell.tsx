@@ -7,6 +7,7 @@ import SeatDetail from './screens/SeatDetail.tsx';
 import Tutorial from './Tutorial.tsx';
 import Home from './screens/Home.tsx';
 import Inbox from './screens/Inbox.tsx';
+import Tracker from './screens/Tracker.tsx';
 import WarRoom from './screens/WarRoom.tsx';
 import National from './screens/National.tsx';
 import Seats from './screens/Seats.tsx';
@@ -59,6 +60,7 @@ export default function Shell() {
       { s: 'national', label: 'National overview', ico: '▦' },
       { s: 'map', label: 'Map', ico: '◈' },
       { s: 'seats', label: 'Constituencies', ico: '☰' },
+      { s: 'tracker', label: 'Vote share tracker', ico: '⇅' },
       { s: 'polling', label: 'Polling', ico: '∿' },
     ] },
     { title: 'Campaign', items: [
@@ -88,7 +90,7 @@ export default function Shell() {
   ];
 
   const titles: Record<Screen, string> = {
-    home: 'Home', inbox: 'Inbox', warroom: 'War room', national: 'National overview', map: 'Map', seats: 'Constituencies', party: 'Party', candidates: 'Candidates', staff: 'Staff',
+    home: 'Home', inbox: 'Inbox', warroom: 'War room', national: 'National overview', map: 'Map', seats: 'Constituencies', tracker: 'Vote share tracker', party: 'Party', candidates: 'Candidates', staff: 'Staff',
     campaign: 'Campaign planner', backroom: 'Backroom', manifesto: 'Manifesto', alliances: 'Alliances', media: 'Media', polling: 'Polling', finances: 'Finances', events: 'Events & memory',
     states: 'State campaign HQ', state: 'State campaign', results: 'Results', formation: 'Government formation', governance: 'Government', career: 'Career history', settings: 'Settings',
   };
@@ -153,6 +155,7 @@ export default function Shell() {
           {screen === 'national' && <National />}
           {screen === 'map' && <Suspense fallback={<div className="empty">Loading map…</div>}><MapScreen /></Suspense>}
           {screen === 'seats' && <Seats />}
+          {screen === 'tracker' && <Tracker />}
           {screen === 'party' && <PartyScreen />}
           {screen === 'candidates' && <Candidates />}
           {screen === 'staff' && <Staff />}

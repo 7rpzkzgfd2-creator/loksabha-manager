@@ -12,7 +12,7 @@ import { STATE_BY_CODE } from '../engine/setup.ts';
 import * as mp from './mpClient.ts';
 
 export type Screen =
-  | 'home' | 'inbox' | 'warroom' | 'national' | 'map' | 'seats' | 'party' | 'candidates' | 'staff'
+  | 'home' | 'inbox' | 'warroom' | 'national' | 'map' | 'seats' | 'tracker' | 'party' | 'candidates' | 'staff'
   | 'campaign' | 'backroom' | 'manifesto' | 'alliances' | 'media' | 'polling' | 'finances' | 'events'
   | 'results' | 'formation' | 'governance' | 'career' | 'settings' | 'states' | 'state';
 

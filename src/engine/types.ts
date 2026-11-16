@@ -512,6 +512,7 @@ export interface GameState {
   relations: Record<string, Record<string, number>>; // -1..1
   polls: PollPoint[];
   seatForecast: Record<string, SeatForecast>; // derived, refreshed every turn
+  prevShares?: Record<string, Record<string, number>>; // seat -> party -> share at the start of last week
   outcomes: ActionOutcome[];
   shadow: ShadowDeal[]; // private ledger; only the owning party can see its own entries
   queued: Record<string, CampaignAction[]>; // party -> actions submitted this turn
